@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Yiisoft\Db\Connection;
 
 use PDO;
-use PDOException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Throwable;
@@ -215,12 +214,20 @@ abstract class Connection implements ConnectionInterface
     /**
      * Creates the PDO instance.
      *
-     * This method is called by {@see open} to establish a DB connection. The default implementation will create a PHP
+     * This method is called by {@see getPdo} to establish a DB connection. The default implementation will create a PHP
      * PDO instance. You may override this method if the default PDO needs to be adapted for certain DBMS.
      *
      * @return PDO the pdo instance
      */
-    abstract protected function createPdoInstance(): PDO;
+    protected function createPdoInstance(): PDO
+    {
+        return new PDO(
+            $this->getDsn(),
+            $this->getUsername(),
+            $this->getPassword(),
+            $this->getAttributes()
+        );
+    }
 
     /**
      * Initializes the DB connection.
@@ -442,12 +449,15 @@ abstract class Connection implements ConnectionInterface
      * {@see close()} methods. When a DB connection is active, this property will represent a PDO instance; otherwise,
      * it will be null.
      *
-     * @return PDO|null
+     * @return PDO
      *
      * {@see pdoClass}
      */
-    public function getPDO(): ?PDO
+    public function getPDO(): PDO
     {
+        if (!$this->pdo) {
+            $this->pdo = $this->createPdoInstance();
+        }
         return $this->pdo;
     }
 
@@ -617,14 +627,12 @@ abstract class Connection implements ConnectionInterface
                 $this->profiler->begin($token, [__METHOD__]);
             }
 
-            $this->pdo = $this->createPdoInstance();
-
             $this->initConnection();
 
             if ($this->profiler !== null) {
                 $this->profiler->end($token, [__METHOD__]);
             }
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
             if ($this->profiler !== null) {
                 $this->profiler->end($token, [__METHOD__]);
             }
